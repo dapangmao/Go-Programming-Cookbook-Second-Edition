@@ -7,7 +7,7 @@ type Color int
 
 const (
 	// ColorNone is default
-	ColorNone = iota
+	ColorNone Color = iota
 	// Red colored text
 	Red
 	// Green colored text
