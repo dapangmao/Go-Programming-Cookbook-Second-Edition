@@ -16,7 +16,7 @@ func LoadConfig(path, envPrefix string, config interface{}) error {
 	if path != "" {
 		err := LoadFile(path, config)
 		if err != nil {
-			return errors.Wrap(err, "error loading config from file")
+			return fmt.Errorf("error loading config from file: %v", err) 
 		}
 	}
 	err := envconfig.Process(envPrefix, config)
