@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/kelseyhightower/envconfig"
-	"github.com/pkg/errors"
+// 	"github.com/pkg/errors"
 )
 
 // LoadConfig will load files optionally from the json file stored
@@ -16,24 +16,26 @@ func LoadConfig(path, envPrefix string, config interface{}) error {
 	if path != "" {
 		err := LoadFile(path, config)
 		if err != nil {
-			return fmt.Errorf("error loading config from file: %v", err) 
+			return fmt.Errorf("error loading config from file: %w", err) 
 		}
 	}
-	err := envconfig.Process(envPrefix, config)
-	return errors.Wrap(err, "error loading config from env")
+	if err := envconfig.Process(envPrefix, config); err != nil {
+		return fmt.Errorf("error loading config from env: %w", err)
+	}
+	return nil
 }
 
 // LoadFile unmarshalls a json file into a config struct
 func LoadFile(path string, config interface{}) error {
 	configFile, err := os.Open(path)
 	if err != nil {
-		return errors.Wrap(err, "failed to read config file")
+		return fmt.Errorf("failed to read config file: %w", err)
 	}
 	defer configFile.Close()
 
 	decoder := json.NewDecoder(configFile)
 	if err = decoder.Decode(config); err != nil {
-		return errors.Wrap(err, "failed to decode config file")
+		return fmt.Errorf("failed to decode config file: %w", err)
 	}
 	return nil
 }
