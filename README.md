@@ -1,5 +1,5 @@
 - Chapter 1, I/O and Filesystems
-  covers common Go I/O interfaces and explores working with filesystems. This includes temporary files, templates, and CSV files.
+  - covers common Go I/O interfaces and explores working with filesystems. This includes temporary files, templates, and CSV files.
 
 - Chapter 2, Command-Line Tools
   looks at taking in user input via the command line and explores processing common datatypes such as TOML, YAML, and JSON.
