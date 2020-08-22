@@ -1,65 +1,70 @@
 package main
 
 import (
-	"crypto/tls"
-	"flag"
-	"fmt"
-	"net/http"
-	"path/filepath"
+        "crypto/tls"
+        "flag"
+        "fmt"
+        "log"
+        "net/http"
+        "os"
+        "os/user"
+        "path/filepath"
 
-	"golang.org/x/crypto/acme/autocert"
+        "golang.org/x/crypto/acme/autocert"
 )
-
-var (
-	domain string
-)
-
-func getSelfSignedOrLetsEncryptCert(certManager *autocert.Manager) func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	return func(hello *tls.ClientHelloInfo) (*tls.Certificate, error) {
-		dirCache, ok := certManager.Cache.(autocert.DirCache)
-		if !ok {
-			dirCache = "certs"
-		}
-
-		keyFile := filepath.Join(string(dirCache), hello.ServerName+".key")
-		crtFile := filepath.Join(string(dirCache), hello.ServerName+".crt")
-		certificate, err := tls.LoadX509KeyPair(crtFile, keyFile)
-		if err != nil {
-			fmt.Printf("%s\nFalling back to Letsencrypt\n", err)
-			return certManager.GetCertificate(hello)
-		}
-		fmt.Println("Loaded selfsigned certificate.")
-		return &certificate, err
-	}
-}
 
 func main() {
-	flag.StringVar(&domain, "domain", "", "domain name to request your certificate")
-	flag.Parse()
+        // setup a simple handler which sends a HTHS header for six months (!)
+        http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+                w.Header().Set("Strict-Transport-Security", "max-age=15768000 ; includeSubDomains")
+                fmt.Fprintf(w, "Hello, HTTPS world!")
+        })
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprint(w, "Hello HTTP/2")
-	})
+        // look for the domains to be served from command line args
+        flag.Parse()
+        domains := flag.Args()
+        if len(domains) == 0 {
+                log.Fatalf("fatal; specify domains as arguments")
+        }
 
-	fmt.Println("TLS domain", domain)
-	certManager := autocert.Manager{
-		Prompt:     autocert.AcceptTOS,
-		HostPolicy: autocert.HostWhitelist(domain),
-		Cache:      autocert.DirCache("certs"),
-	}
+        // create the autocert.Manager with domains and path to the cache
+        certManager := autocert.Manager{
+                Prompt:     autocert.AcceptTOS,
+                HostPolicy: autocert.HostWhitelist(domains...),
+        }
 
-	tlsConfig := certManager.TLSConfig()
-	tlsConfig.GetCertificate = getSelfSignedOrLetsEncryptCert(&certManager)
-	server := http.Server{
-		Addr:      ":443",
-		Handler:   mux,
-		TLSConfig: tlsConfig,
-	}
+        // optionally use a cache dir
+        dir := cacheDir()
+        if dir != "" {
+                certManager.Cache = autocert.DirCache(dir)
+        }
 
-	go http.ListenAndServe(":80", certManager.HTTPHandler(nil))
-	fmt.Println("Server listening on", server.Addr)
-	if err := server.ListenAndServeTLS("", ""); err != nil {
-		fmt.Println(err)
-	}
+        // create the server itself
+        server := &http.Server{
+                Addr: ":https",
+                TLSConfig: &tls.Config{
+                        GetCertificate: certManager.GetCertificate,
+                },
+        }
+
+        log.Printf("Serving http/https for domains: %+v", domains)
+        go func() {
+                // serve HTTP, which will redirect automatically to HTTPS
+                h := certManager.HTTPHandler(nil)
+                log.Fatal(http.ListenAndServe(":http", h))
+        }()
+
+        // serve HTTPS!
+        log.Fatal(server.ListenAndServeTLS("", ""))
+}
+
+// cacheDir makes a consistent cache directory inside /tmp. Returns "" on error.
+func cacheDir() (dir string) {
+        if u, _ := user.Current(); u != nil {
+                dir = filepath.Join(os.TempDir(), "cache-golang-autocert-"+u.Username)
+                if err := os.MkdirAll(dir, 0700); err == nil {
+                        return dir
+                }
+        }
+        return ""
 }
