@@ -15,7 +15,7 @@ func Buffer(rawString string) *bytes.Buffer {
 
 	// there are a number of ways to create a buffer from the
 	// raw bytes or from the original string
-	var b = new(bytes.Buffer)
+	var b bytes.Buffer
 	b.Write(rawBytes)
 
 	// alternatively
